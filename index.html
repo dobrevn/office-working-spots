@@ -1,172 +1,155 @@
 <!DOCTYPE html>
 <html lang="bg">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Office Live Map</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <!-- FontAwesome за икони -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Supabase JS Library -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Office Control Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+.monitor-free { filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4)); }
+.monitor-occupied { filter: drop-shadow(0 0 4px rgba(244, 63, 94, 0.4)); }
+.monitor-mine { filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.8)); }
+</style>
 </head>
-<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 min-h-screen text-slate-100 font-sans p-4 md:p-8 selection:bg-indigo-500/30">
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-500/30">
 
-    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        <!-- ЛЯВА КОЛОНА: КАЛЕНДАР И СРЕЩИ -->
-        <div class="lg:col-span-4 flex flex-col gap-6">
-            <!-- Календар -->
-            <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800 p-5 rounded-2xl shadow-xl">
-                <div class="flex justify-between items-center mb-4">
-                    <button id="btn-prev-month" class="text-slate-400 hover:text-indigo-400 transition cursor-pointer p-1"><i class="fa-solid fa-chevron-left"></i></button>
-                    <h3 id="calendar-month-year" class="text-sm font-bold tracking-wide uppercase text-slate-200"></h3>
-                    <button id="btn-next-month" class="text-slate-400 hover:text-indigo-400 transition cursor-pointer p-1"><i class="fa-solid fa-chevron-right"></i></button>
-                </div>
-                <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Нд</div>
-                </div>
-                <div id="calendar-days-grid" class="grid grid-cols-7 gap-1"></div>
-                <input type="date" id="date-picker" class="hidden">
-            </div>
+<div class="container mx-auto px-4 py-6 max-w-6xl">
+<header class="flex flex-col md:flex-row justify-between items-center mb-6 bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl backdrop-blur-md gap-4">
+<div>
+<h1 class="text-2xl font-extrabold text-white tracking-tight flex items-center gap-3">
+<span class="p-2 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
+<i class="fa-solid fa-building-user"></i>
+</span>
+Office Control Hub
+</h1>
+<p class="text-slate-400 text-sm mt-1">Изберете дата от календара и управлявайте местата и срещите</p>
+</div>
 
-            <!-- Срещи в конферентната -->
-            <div class="bg-slate-900/40 backdrop-blur-md border border-slate-800 p-5 rounded-2xl shadow-xl flex-1 flex flex-col">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-handshake text-indigo-400"></i> Конферентна зала
-                </h3>
-                <div id="meeting-slots-container" class="space-y-3 overflow-y-auto max-h-[400px] pr-1"></div>
-            </div>
-        </div>
+<div class="bg-slate-900 p-4 rounded-xl border border-slate-800 w-full md:w-auto min-w-[320px]">
+<div class="flex items-center justify-between mb-2">
+<span id="calendar-month-year" class="text-xs font-bold uppercase tracking-wider text-indigo-400"></span>
+<div class="flex gap-1">
+<button id="btn-prev-month" class="p-1 px-2 bg-slate-800 hover:bg-slate-700 rounded text-xs cursor-pointer"><i class="fa-solid fa-chevron-left"></i></button>
+<button id="btn-next-month" class="p-1 px-2 bg-slate-800 hover:bg-slate-700 rounded text-xs cursor-pointer"><i class="fa-solid fa-chevron-right"></i></button>
+</div>
+</div>
+<div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-500 mb-1">
+<div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div class="text-rose-400">Сб</div><div class="text-rose-400">Нд</div>
+</div>
+<div id="calendar-days-grid" class="grid grid-cols-7 gap-1 text-center"></div>
+<input type="hidden" id="date-picker">
+</div>
+</header>
 
-        <!-- ДЯСНА КОЛОНА: ОФИС КАРТА -->
-        <div class="lg:col-span-8 flex flex-col gap-4">
-            <!-- Табове за стаите -->
-            <div class="flex bg-slate-950/60 p-1.5 rounded-xl border border-slate-800 max-w-xs shadow-inner">
-                <button id="tab-main" class="flex-1 text-center py-2.5 rounded-lg font-bold text-sm bg-indigo-600 text-white shadow-lg cursor-pointer transition-all">Голяма стая</button>
-                <button id="tab-small" class="flex-1 text-center py-2.5 rounded-lg font-bold text-sm text-slate-400 hover:text-slate-200 cursor-pointer transition-all">Малка стая</button>
-            </div>
+<div class="mb-4 text-center bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 p-2.5 rounded-xl text-sm font-bold">
+<i class="fa-solid fa-calendar-day mr-2"></i> Избрана дата: <span id="current-selected-date-display"></span>
+</div>
 
-            <!-- Главна контейнерна кутия за Офиса -->
-            <div class="bg-slate-900/20 backdrop-blur-lg border border-slate-800/60 p-6 rounded-3xl shadow-2xl relative min-h-[620px] flex flex-col justify-between">
-                
-                <div class="mb-4">
-                    <span id="current-selected-date-display" class="text-lg font-black tracking-tight text-indigo-400"></span>
-                </div>
+<div class="flex gap-2 mb-6 bg-slate-900/60 p-1.5 rounded-xl border border-slate-800 max-w-md mx-auto">
+<button id="tab-main" class="flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 bg-indigo-600 text-white shadow-lg cursor-pointer">
+<i class="fa-solid fa-border-all mr-2"></i>Основна стая (Бюра)
+</button>
+<button id="tab-small" class="flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 text-slate-400 hover:text-slate-200 cursor-pointer">
+<i class="fa-solid fa-handshake-simple mr-2"></i>Малка стая (Срещи)
+</button>
+</div>
 
-                <!-- ГОЛЯМА СТАЯ -->
-                <div id="room-main-container" class="block flex-1 relative min-h-[500px]">
-                    
-                    <!-- МАСА А (ВЕРТИКАЛНА И ПЕРПЕНДИКУЛЯРНА) -->
-                    <div class="absolute left-6 top-16 bg-slate-800/20 border border-slate-700/30 p-4 rounded-2xl flex flex-col items-center gap-4 shadow-lg backdrop-blur-sm">
-                        <div class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Ляв Край</div>
-                        
-                        <!-- Бюра 3 и 4 (Горна двойка, едно срещу друго) -->
-                        <div class="flex gap-4 items-center">
-                            <div id="pos-M-3"></div>
-                            <div class="w-1 bg-slate-700/40 h-12 rounded"></div> <!-- Разделителна линия -->
-                            <div id="pos-M-4"></div>
-                        </div>
+<div id="room-main-container" class="block">
+<div class="flex flex-wrap gap-4 mb-4 text-xs justify-center font-medium text-slate-300 bg-slate-900/10 p-2 rounded-xl border border-slate-900">
+<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div> Свободно място</div>
+<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 bg-rose-500 rounded-full"></div> Заето място</div>
+<div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 bg-indigo-500 rounded-full"></div> Вашето място</div>
+</div>
 
-                        <!-- Физическият блок "МАСА А" завъртян перпендикулярно -->
-                        <div class="w-full bg-amber-900/80 border border-amber-700 text-amber-200 font-mono text-[10px] font-black tracking-widest text-center py-1.5 rounded-md shadow-inner uppercase">
-                            Маса А
-                        </div>
+<div class="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 shadow-2xl overflow-x-auto">
+<div class="min-w-[950px] border-2 border-slate-200 rounded-2xl p-8 bg-slate-100 flex justify-start items-center relative gap-12 h-[480px]">
 
-                        <!-- Бюра 1 и 2 (Долна двойка, едно срещу друго) -->
-                        <div class="flex gap-4 items-center">
-                            <div id="pos-M-1"></div>
-                            <div class="w-1 bg-slate-700/40 h-12 rounded"></div> <!-- Разделителна линия -->
-                            <div id="pos-M-2"></div>
-                        </div>
-                    </div>
+<div class="flex flex-col items-center justify-center border-r-2 border-slate-300 pr-8 h-full gap-4">
+<div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Ляв Край</div>
+<div class="flex items-center gap-2 bg-slate-800/5 p-2 rounded-xl border border-slate-200">
+<div id="pos-M-3"></div>
+<div class="w-10 h-10 bg-amber-800 rounded border border-amber-700 flex items-center justify-center text-[9px] font-bold text-amber-100 uppercase rotate-90">Маса А</div>
+<div id="pos-M-4"></div>
+</div>
+<div class="flex items-center gap-2 bg-slate-800/5 p-2 rounded-xl border border-slate-200">
+<div id="pos-M-1"></div>
+<div class="w-10 h-10 bg-amber-800 rounded border border-amber-700 flex items-center justify-center text-[9px] font-bold text-amber-100 uppercase rotate-90">Маса А</div>
+<div id="pos-M-2"></div>
+</div>
+</div>
 
-                    <!-- ОСТАНАЛИТЕ МАСИ (ДЕСЕН КРАЙ) -->
-                    <div class="absolute right-6 top-6 bottom-6 left-56 grid grid-cols-2 gap-6">
-                        <!-- Маса 1 -->
-                        <div class="bg-slate-800/10 border border-slate-800/40 rounded-2xl p-3 flex justify-between items-center gap-2">
-                            <div id="t1-left" class="flex flex-col gap-2"></div>
-                            <div class="h-full w-4 bg-amber-900/60 border border-amber-800 rounded flex items-center justify-center text-[9px] font-bold font-mono text-amber-300 uppercase [writing-mode:vertical-lr] tracking-widest select-none shadow-inner">Маса 1</div>
-                            <div id="t1-right" class="flex flex-col gap-2"></div>
-                        </div>
-                        <!-- Маса 2 -->
-                        <div class="bg-slate-800/10 border border-slate-800/40 rounded-2xl p-3 flex justify-between items-center gap-2">
-                            <div id="t2-left" class="flex flex-col gap-2"></div>
-                            <div class="h-full w-4 bg-amber-900/60 border border-amber-800 rounded flex items-center justify-center text-[9px] font-bold font-mono text-amber-300 uppercase [writing-mode:vertical-lr] tracking-widest select-none shadow-inner">Маса 2</div>
-                            <div id="t2-right" class="flex flex-col gap-2"></div>
-                        </div>
-                        <!-- Маса 3 -->
-                        <div class="bg-slate-800/10 border border-slate-800/40 rounded-2xl p-3 flex justify-between items-center gap-2 col-span-2 max-w-md mx-auto w-full">
-                            <div id="t3-left" class="flex flex-col gap-2"></div>
-                            <div class="h-full w-4 bg-amber-900/60 border border-amber-800 rounded flex items-center justify-center text-[9px] font-bold font-mono text-amber-300 uppercase [writing-mode:vertical-lr] tracking-widest select-none shadow-inner">Маса 3</div>
-                            <div id="t3-right" class="flex flex-col gap-2"></div>
-                        </div>
-                    </div>
+<div class="flex-1 flex justify-around items-center h-full">
+<div class="flex items-center gap-2 bg-slate-200/60 p-4 rounded-xl border border-slate-300 shadow-sm">
+<div id="t1-left" class="flex flex-col gap-4"></div>
+<div class="w-12 h-64 bg-slate-800 rounded-lg flex items-center justify-center text-xs font-black text-slate-400 [writing-mode:vertical-lr] rotate-180">Маса 1</div>
+<div id="t1-right" class="flex flex-col gap-4"></div>
+</div>
+<div class="flex items-center gap-2 bg-slate-200/60 p-4 rounded-xl border border-slate-300 shadow-sm">
+<div id="t2-left" class="flex flex-col gap-4"></div>
+<div class="w-12 h-64 bg-slate-800 rounded-lg flex items-center justify-center text-xs font-black text-slate-400 [writing-mode:vertical-lr] rotate-180">Маса 2</div>
+<div id="t2-right" class="flex flex-col gap-4"></div>
+</div>
+<div class="flex items-center gap-2 bg-slate-200/60 p-4 rounded-xl border border-slate-300 shadow-sm">
+<div id="t3-left" class="flex flex-col gap-4"></div>
+<div class="w-12 h-64 bg-slate-800 rounded-lg flex items-center justify-center text-xs font-black text-slate-400 [writing-mode:vertical-lr] rotate-180">Маса 3</div>
+<div id="t3-right" class="flex flex-col gap-4"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
 
-                </div>
+<div id="room-small-container" class="hidden">
+<div class="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 shadow-2xl">
+<div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+<h2 class="text-base font-bold text-white"><i class="fa-solid fa-clock-history text-indigo-400 mr-2"></i>Дневен график на Зала за срещи</h2>
+<span class="text-xs text-slate-400">Кликнете върху свободен час за резервация</span>
+</div>
+<div id="meeting-slots-container" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+</div>
+</div>
+</div>
 
-                <!-- МАЛКА СТАЯ -->
-                <div id="room-small-container" class="hidden flex-1 relative min-h-[500px]">
-                    <div class="absolute inset-0 flex items-center justify-center text-slate-500 font-medium">
-                        <p class="text-sm border border-dashed border-slate-800 p-8 rounded-xl"><i class="fa-solid fa-compass-drafting mr-2"></i>Тук можете да добавите конфигурация за малката стая</p>
-                    </div>
-                </div>
+<div id="booking-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md hidden justify-center items-center z-50">
+<div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+<h3 class="text-lg font-bold text-white mb-1">Резервиране на Бюро</h3>
+<p class="text-xs text-slate-400 mb-4" id="modal-subtitle"></p>
+<div class="space-y-3">
+<div>
+<label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Вашето Име:</label>
+<input type="text" id="user-name" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-indigo-500">
+</div>
+</div>
+<div class="flex gap-3 justify-end mt-6">
+<button id="btn-close-modal" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer">Отказ</button>
+<button id="btn-confirm-booking" class="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold cursor-pointer">Запази</button>
+</div>
+</div>
+</div>
 
-                <!-- ЛИНИЯТА НА СТЕНАТА И ВХОДНИТЕ ВРАТИ (НАЙ-ДОЛУ) -->
-                <div class="w-full border-t border-slate-800/80 mt-4 pt-4 flex justify-around relative">
-                    <!-- Входна врата 1 -->
-                    <div class="bg-slate-900 px-4 py-1.5 border-t-2 border-emerald-500 text-emerald-400 text-[10px] font-black tracking-widest uppercase rounded-b shadow-md">
-                        <i class="fa-solid fa-door-open mr-1.5 animate-pulse"></i> Вход Главна
-                    </div>
-                    <!-- Входна врата 2 -->
-                    <div class="bg-slate-900 px-4 py-1.5 border-t-2 border-emerald-500 text-emerald-400 text-[10px] font-black tracking-widest uppercase rounded-b shadow-md">
-                        <i class="fa-solid fa-door-open mr-1.5 animate-pulse"></i> Вход Коридор
-                    </div>
-                </div>
+<div id="meeting-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md hidden justify-center items-center z-50">
+<div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+<h3 class="text-lg font-bold text-white mb-1">Резервация на Зала за Срещи</h3>
+<p class="text-xs text-slate-400 mb-4" id="meeting-modal-subtitle"></p>
+<div class="space-y-4">
+<div>
+<label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Тема на срещата:</label>
+<input type="text" id="meeting-title" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-indigo-500">
+</div>
+<div>
+<label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Имена на всички заемащи:</label>
+<textarea id="meeting-attendees" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-indigo-500" placeholder="Пример: Иван, Георги, Мария"></textarea>
+</div>
+</div>
+<div class="flex gap-3 justify-end mt-6">
+<button id="btn-close-meeting-modal" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer">Отказ</button>
+<button id="btn-confirm-meeting" class="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold cursor-pointer">Запази</button>
+</div>
+</div>
+</div>
 
-            </div>
-        </div>
-    </div>
-
-    <!-- МОДАЛЕН ПРОЗОРЕЦ: БЮРА -->
-    <div id="booking-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
-            <h3 class="text-base font-bold text-slate-100 flex items-center gap-2"><i class="fa-solid fa-circle-check text-indigo-400"></i>Запазване на място</h3>
-            <p id="modal-subtitle" class="text-xs text-slate-400 mt-1"></p>
-            <div class="mt-4">
-                <label class="block text-[11px] uppercase font-bold tracking-wider text-slate-400 mb-1.5">Вашето Име:</label>
-                <input type="text" id="user-name" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 shadow-inner" placeholder="напр. Иван П.">
-            </div>
-            <div class="mt-5 flex gap-3">
-                <button id="btn-close-modal" class="flex-1 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700 cursor-pointer transition">Отказ</button>
-                <button id="btn-confirm-booking" class="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 cursor-pointer transition">Потвърди</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- МОДАЛЕН ПРОЗОРЕЦ: СРЕЩИ -->
-    <div id="meeting-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
-            <h3 class="text-base font-bold text-slate-100 flex items-center gap-2"><i class="fa-solid fa-calendar-plus text-indigo-400"></i>Резервация на зала</h3>
-            <p id="meeting-modal-subtitle" class="text-xs text-slate-400 mt-1"></p>
-            <div class="mt-4 space-y-3">
-                <div>
-                    <label class="block text-[11px] uppercase font-bold tracking-wider text-slate-400 mb-1">Тема на срещата:</label>
-                    <input type="text" id="meeting-title" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 shadow-inner" placeholder="напр. Среща с клиенти">
-                </div>
-                <div>
-                    <label class="block text-[11px] uppercase font-bold tracking-wider text-slate-400 mb-1">Кой ще присъства:</label>
-                    <input type="text" id="meeting-attendees" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 shadow-inner" placeholder="напр. Иван, Мария, Георги">
-                </div>
-            </div>
-            <div class="mt-5 flex gap-3">
-                <button id="btn-close-meeting-modal" class="flex-1 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-700 cursor-pointer transition">Отказ</button>
-                <button id="btn-confirm-meeting" class="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 cursor-pointer transition">Запази зала</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
