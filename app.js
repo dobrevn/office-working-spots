@@ -1,6 +1,6 @@
 // Конфигурация на твоя Supabase проект
 const SUPABASE_URL = "https://ieyujagodnrafpbagyvn.supabase.co";
-const SUPABASE_KEY = "sb_publishable_JFLXmTQzC5z2t28c9pPUiA_vCH6Y_X_7uH6B033p_Lsh5I5H_vF1C25T9b3_j6U"; 
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlleXVqYWdvZG5yYWZwYmFneXZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0OTc3NDAsImV4cCI6MjA5OTA3Mzc0MH0.T2cjzuPrGgXuftzBTiQVF5zy5g1xJrwJsXaGCKAPx4Y"; 
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
