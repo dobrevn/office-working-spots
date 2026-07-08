@@ -1,171 +1,143 @@
-// Списък с официални неработни празнични дни (формат: ГГГГ-ММ-ДД)
-// Можеш да добавяш нови дати тук ръчно, когато излязат за съответната година
 const OFFICIAL_HOLIDAYS = [
-    '2026-01-01', // Нова година
-    '2026-03-03', // Освобождение на България
-    '2026-04-10', // Разпети петък (примерна дата за Великден 2026)
-    '2026-04-13', // Великденски понеделник
-    '2026-05-01', // Ден на труда
-    '2026-05-06', // Гергьовден
-    '2026-05-24', // Ден на светите братя Кирил и Методий
-    '2026-09-06', // Съединение на България
-    '2026-09-22', // Независимост на България
-    '2026-11-01', // Ден на народните будители
-    '2026-12-24', // Бъдни вечер
-    '2026-12-25', // Коледа
-    '2026-12-26'  // Коледа
+    '2026-01-01', '2026-03-03', '2026-04-10', '2026-04-13',
+    '2026-05-01', '2026-05-06', '2026-05-24', '2026-09-06',
+    '2026-09-22', '2026-11-01', '2026-12-24', '2026-12-25', '2026-12-26'
 ];
+
+const WEEKDAYS_BG = ["Неделя", "Понеделник", "Вторник", "Сряда", "Четвъртък", "Петък", "Събота"];
 
 const datePicker = document.getElementById('date-picker');
 const dateInfo = document.getElementById('date-info');
 const weekendWarning = document.getElementById('weekend-warning');
 
-// По подразбиране зареждаме днешната календарна дата (формат: 2026-07-08)
-const todayDateString = new Date().toISOString().split('T')[0];
-datePicker.value = todayDateString;
-
-// База данни, записана трайно в браузъра под ключ 'office_reservations'
+// Локална памет (база данни)
 let reservations = JSON.parse(localStorage.getItem('office_reservations')) || {};
-
-let currentRoom = 'main';
-let selectedDeskId = null;
 let currentUserName = localStorage.getItem('current_user_name') || '';
+let selectedDeskId = null;
 
-// Помощни масиви за показване името на деня от седмицата
-const WEEKDAYS_BG = ["Неделя", "Понеделник", "Вторник", "Сряда", "Четвъртък", "Петък", "Събота"];
+// Инициализиране с днешна дата по подразбиране
+const todayStr = new Date().toISOString().split('T')[0];
+datePicker.value = todayStr;
 
-// Функция, която проверява статуса на избраната дата
 function checkDateStatus(dateString) {
     const dateObj = new Date(dateString);
-    const dayOfWeek = dateObj.getDay(); // 0 = Неделя, 6 = Събота
-    
+    const dayOfWeek = dateObj.getDay();
     const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
     const isHoliday = OFFICIAL_HOLIDAYS.includes(dateString);
-    
-    return {
-        isWeekend: isWeekend,
-        isHoliday: isHoliday,
-        isClosed: (isWeekend || isHoliday),
-        dayName: WEEKDAYS_BG[dayOfWeek]
-    };
+    return { isClosed: (isWeekend || isHoliday), dayName: WEEKDAYS_BG[dayOfWeek] };
 }
 
-// Главна функция за рендериране
 function renderOffice() {
     const selectedDate = datePicker.value;
+    if (!reservations[selectedDate]) reservations[selectedDate] = {};
     
-    // Ако за тази конкретна дата няма обект в базата данни, създаваме го празен
-    if (!reservations[selectedDate]) {
-        reservations[selectedDate] = {};
-    }
-
-    const currentDayReservations = reservations[selectedDate];
+    const dayRes = reservations[selectedDate];
     const dateStatus = checkDateStatus(selectedDate);
 
-    // Изписваме деня от седмицата до календара за допълнителна яснота
-    dateInfo.innerText = `${dateStatus.dayName} ${dateStatus.isHoliday ? '(Празник)' : ''}`;
-
-    // Ако е почивен ден, показваме голямо предупреждение и скриваме/деактивираме картите
+    dateInfo.innerText = `${dateStatus.dayName}`;
     if (dateStatus.isClosed) {
         weekendWarning.classList.remove('hidden');
     } else {
         weekendWarning.classList.add('hidden');
     }
 
-    // 1. Основна стая - Ляв блок (4 монитора)
-    const leftBlock = document.getElementById('left-block');
-    leftBlock.innerHTML = '';
-    for (let i = 1; i <= 4; i++) {
-        leftBlock.appendChild(createDeskElement(`M-${i}`, i, currentDayReservations, dateStatus.isClosed));
-    }
+    // ИЗЧИСТВАНЕ НА ЗОНИТЕ ПРЕДИ ЗАРЕЖДАНЕ
+    const zones = {
+        'left-top': document.getElementById('left-top-row'),
+        'left-bottom': document.getElementById('left-bottom-row'),
+        't1-top': document.getElementById('main-table-1-top'),
+        't1-bottom': document.getElementById('main-table-1-bottom'),
+        't2-top': document.getElementById('main-table-2-top'),
+        't2-bottom': document.getElementById('main-table-2-bottom'),
+        't3-top': document.getElementById('main-table-3-top'),
+        't3-bottom': document.getElementById('main-table-3-bottom'),
+        'small': document.getElementById('small-room-top')
+    };
+    Object.values(zones).forEach(z => z.innerHTML = '');
 
-    // 2. Основна стая - Острови (Редици 3 по 3, общо 18 бюра)
-    const rowsBlock = document.getElementById('rows-block');
-    rowsBlock.innerHTML = '';
-    for (let i = 5; i <= 22; i++) {
-        rowsBlock.appendChild(createDeskElement(`M-${i}`, i, currentDayReservations, dateStatus.isClosed));
-    }
+    // 1. ЛЯВ КРАЙ (Монитори 1 и 2 отгоре, 3 и 4 отдолу)
+    zones['left-top'].appendChild(createDeskIcon('M-1', '1', dayRes, dateStatus.isClosed, 'down'));
+    zones['left-top'].appendChild(createDeskIcon('M-2', '2', dayRes, dateStatus.isClosed, 'down'));
+    zones['left-bottom'].appendChild(createDeskIcon('M-3', '3', dayRes, dateStatus.isClosed, 'up'));
+    zones['left-bottom'].appendChild(createDeskIcon('M-4', '4', dayRes, dateStatus.isClosed, 'up'));
 
-    // 3. Малка стая (3 монитора)
-    const smallRoomBlock = document.getElementById('small-room-block');
-    smallRoomBlock.innerHTML = '';
-    for (let i = 1; i <= 3; i++) {
-        smallRoomBlock.appendChild(createDeskElement(`S-${i}`, i, currentDayReservations, dateStatus.isClosed));
-    }
+    // 2. ДЪЛГИ МАСИ (3 маси по 6 монитора: 3 сочат надолу, 3 сочат нагоре)
+    // Маса 1 (Бюра 5-10)
+    for(let i=5; i<=7; i++) zones['t1-top'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'down'));
+    for(let i=8; i<=10; i++) zones['t1-bottom'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'up'));
+
+    // Маса 2 (Бюра 11-16)
+    for(let i=11; i<=13; i++) zones['t2-top'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'down'));
+    for(let i=14; i<=16; i++) zones['t2-bottom'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'up'));
+
+    // Маса 3 (Бюра 17-22)
+    for(let i=17; i<=19; i++) zones['t3-top'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'down'));
+    for(let i=20; i<=22; i++) zones['t3-bottom'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'up'));
+
+    // 3. МАЛКА СТАЯ (3 монитора в редица)
+    for(let i=1; i<=3; i++) zones['small'].appendChild(createDeskIcon(`S-${i}`, i, dayRes, dateStatus.isClosed, 'down'));
 }
 
-// Функция за създаване на всяка кутийка-бюро
-function createDeskElement(id, displayNum, currentDayReservations, isClosedDay) {
-    const desk = document.createElement('div');
-    const isOccupied = !!currentDayReservations[id];
-    const occupant = currentDayReservations[id];
+// Функция за създаване на икона-монитор с физическа ориентация
+function createDeskIcon(id, displayNum, dayRes, isClosedDay, direction) {
+    const wrapper = document.createElement('div');
+    const isOccupied = !!dayRes[id];
+    const occupant = dayRes[id];
     const isMe = isOccupied && occupant === currentUserName;
 
-    let bgClass = 'bg-emerald-500/10 border-emerald-500 text-emerald-400 hover:bg-emerald-500/20';
-    
+    // Определяне на цвета спрямо статуса
+    let colorClass = 'text-emerald-500 hover:text-emerald-400 border-emerald-500/20 bg-emerald-500/5 monitor-free';
     if (isOccupied) {
-        bgClass = isMe 
-            ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30' 
-            : 'bg-rose-500/10 border-rose-500/50 text-rose-400 hover:bg-rose-500/20';
+        colorClass = isMe 
+            ? 'text-indigo-400 border-indigo-500/50 bg-indigo-500/10 monitor-mine' 
+            : 'text-rose-500 border-rose-500/20 bg-rose-500/5 monitor-occupied';
     }
-
-    // Ако денят е затворен (уикенд/празник), правим бюрата сиви и неактивни
     if (isClosedDay) {
-        bgClass = 'bg-slate-800/50 border-slate-700 text-slate-500 cursor-not-allowed';
+        colorClass = 'text-slate-700 border-slate-900 bg-slate-900/10 cursor-not-allowed';
     }
 
-    desk.className = `border-2 ${bgClass} rounded-xl p-4 flex flex-col items-center justify-center transition-all duration-200 transform ${isClosedDay ? '' : 'hover:scale-105 cursor-pointer'} min-w-[75px]`;
-    desk.innerHTML = `
-        <i class="fa-solid fa-desktop text-xl mb-1"></i>
-        <span class="text-xs font-bold font-mono">${displayNum}</span>
-        ${isOccupied ? `<span class="text-[10px] mt-1 bg-slate-950/60 px-1.5 py-0.5 rounded text-ellipsis max-w-full overflow-hidden whitespace-nowrap">${occupant}</span>` : ''}
+    wrapper.className = `flex flex-col items-center justify-center p-2 rounded-xl border transition-all duration-200 ${isClosedDay ? '' : 'hover:scale-110 cursor-pointer'} ${colorClass} w-14 h-14 relative group`;
+    
+    // Визуална стрелкичка, която показва накъде гледа монитора на масата
+    const arrow = direction === 'down' ? '🔽' : '🔼';
+
+    wrapper.innerHTML = `
+        <i class="fa-solid fa-desktop text-base"></i>
+        <span class="text-[10px] font-black font-mono tracking-tighter mt-0.5">${displayNum}</span>
+        <!-- Tooltip при посочване (Ховър ефект) -->
+        <span class="absolute bottom-full mb-1 scale-0 group-hover:scale-100 transition-all text-[10px] bg-slate-900 text-slate-200 px-2 py-1 rounded border border-slate-700 font-medium whitespace-nowrap z-10 shadow-xl">
+            ${isOccupied ? `Заето от: ${occupant}` : isClosedDay ? 'Затворено' : 'Свободно (Dell 24")'}
+        </span>
     `;
 
-    // Клик събитие (само ако денят е отворен за работа)
     if (!isClosedDay) {
-        desk.onclick = () => handleDeskClick(id, isOccupied, isMe, occupant);
+        wrapper.onclick = () => handleDeskClick(id, isOccupied, isMe, occupant);
     }
-    
-    return desk;
+    return wrapper;
 }
 
-// Логика при кликване на работно място
 function handleDeskClick(id, isOccupied, isMe, occupant) {
     selectedDeskId = id;
     const selectedDate = datePicker.value;
     
     if (isOccupied) {
         if (isMe) {
-            // Твърдо потвърждение с точна календарна дата в текста
-            if (confirm(`Искате ли да отмените резервацията си за Монитор ${id.split('-')[1]} за датата ${selectedDate}?`)) {
+            if (confirm(`Желаете ли да откажете резервацията си за Монитор ${id.split('-')[1]} за дата ${selectedDate}?`)) {
                 delete reservations[selectedDate][id];
-                saveData();
+                localStorage.setItem('office_reservations', JSON.stringify(reservations));
                 renderOffice();
             }
-        } else {
-            alert(`Това място е резервирано от: ${occupant}`);
         }
     } else {
-        // Отваряне на модала за резервация за конкретната избрана дата
-        document.getElementById('modal-title').innerText = "Резервация на място";
-        document.getElementById('modal-subtitle').innerText = `${id.includes('M') ? 'Основна стая' : 'Малка стая'}, Монитор ${id.split('-')[1]} за дата: ${selectedDate}`;
+        document.getElementById('modal-subtitle').innerText = `${id.includes('M') ? 'Основна стая' : 'Малка стая'}, Монитор ${id.split('-')[1]} (${selectedDate})`;
         document.getElementById('user-name').value = currentUserName;
         document.getElementById('booking-modal').style.display = 'flex';
     }
 }
 
-// Запис в базата данни (localStorage)
-function saveData() {
-    localStorage.setItem('office_reservations', JSON.stringify(reservations));
-}
-
-// Потвърждаване на резервацията от Popup прозореца
 document.getElementById('btn-confirm-booking').onclick = () => {
     const nameInput = document.getElementById('user-name').value.trim();
-    if (!nameInput) {
-        alert('Моля, въведете име!');
-        return;
-    }
+    if (!nameInput) return alert('Моля, въведете име!');
 
     currentUserName = nameInput;
     localStorage.setItem('current_user_name', currentUserName);
@@ -173,40 +145,32 @@ document.getElementById('btn-confirm-booking').onclick = () => {
     const selectedDate = datePicker.value;
     reservations[selectedDate][selectedDeskId] = currentUserName;
     
-    saveData();
+    localStorage.setItem('office_reservations', JSON.stringify(reservations));
     document.getElementById('booking-modal').style.display = 'none';
     renderOffice();
 };
 
-// Затваряне на попъпа
 document.getElementById('btn-close-modal').onclick = () => {
     document.getElementById('booking-modal').style.display = 'none';
 };
 
-// При смяна на деня от календара, веднага преначертаваме всичко за новата дата
-datePicker.onchange = () => {
-    renderOffice();
-};
+datePicker.onchange = () => renderOffice();
 
-// Табове - превключване между стаите
+// Табове логика
 const tabMain = document.getElementById('tab-main');
 const tabSmall = document.getElementById('tab-small');
 const roomMainContainer = document.getElementById('room-main-container');
 const roomSmallContainer = document.getElementById('room-small-container');
 
 tabMain.onclick = () => {
-    tabMain.className = "px-6 py-3 font-semibold text-indigo-400 border-b-2 border-indigo-500 transition-all";
-    tabSmall.className = "px-6 py-3 font-semibold text-slate-400 hover:text-slate-200 transition-all";
-    roomMainContainer.className = "block";
-    roomSmallContainer.className = "hidden";
+    tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 bg-indigo-600 text-white shadow-lg shadow-indigo-600/10 cursor-pointer";
+    tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 text-slate-400 hover:text-slate-200 cursor-pointer";
+    roomMainContainer.className = "block"; roomSmallContainer.className = "hidden";
 };
-
 tabSmall.onclick = () => {
-    tabSmall.className = "px-6 py-3 font-semibold text-indigo-400 border-b-2 border-indigo-500 transition-all";
-    tabMain.className = "px-6 py-3 font-semibold text-slate-400 hover:text-slate-200 transition-all";
-    roomSmallContainer.className = "block";
-    roomMainContainer.className = "hidden";
+    tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 bg-indigo-600 text-white shadow-lg shadow-indigo-600/10 cursor-pointer";
+    tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 text-slate-400 hover:text-slate-200 cursor-pointer";
+    roomSmallContainer.className = "block"; roomMainContainer.className = "hidden";
 };
 
-// Първоначално стартиране при зареждане на страницата
 renderOffice();
