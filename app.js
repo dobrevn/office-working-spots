@@ -24,30 +24,34 @@ window.onload = () => {
 
 // Зареждане на данните от базата данни за избрания ден
 async function fetchCloudData() {
-    // 1. Изтегляне на бюра
-    const { data: resData, error: e1 } = await supabaseClient
-        .from('office_reservations')
-        .select('*')
-        .eq('date', selectedDateStr);
-        
-    activeReservations = {};
-    if (resData) {
-        resData.forEach(row => { activeReservations[row.desk_id] = row.user_name; });
-    }
+    try {
+        // 1. Изтегляне на бюра
+        const { data: resData, error: e1 } = await supabaseClient
+            .from('office_reservations')
+            .select('*')
+            .eq('date', selectedDateStr);
+            
+        activeReservations = {};
+        if (resData) {
+            resData.forEach(row => { activeReservations[row.desk_id] = row.user_name; });
+        }
 
-    // 2. Изтегляне на срещи
-    const { data: meetData, error: e2 } = await supabaseClient
-        .from('office_meetings')
-        .select('*')
-        .eq('date', selectedDateStr);
-        
-    activeMeetings = {};
-    if (meetData) {
-        meetData.forEach(row => { activeMeetings[row.slot_index] = { title: row.title, attendees: row.attendees }; });
-    }
+        // 2. Изтегляне на срещи
+        const { data: meetData, error: e2 } = await supabaseClient
+            .from('office_meetings')
+            .select('*')
+            .eq('date', selectedDateStr);
+            
+        activeMeetings = {};
+        if (meetData) {
+            meetData.forEach(row => { activeMeetings[row.slot_index] = { title: row.title, attendees: row.attendees }; });
+        }
 
-    renderOffice();
-    renderMeetings();
+        renderOffice();
+        renderMeetings();
+    } catch (err) {
+        console.error("Грешка при теглене на данни:", err);
+    }
 }
 
 // Изграждане на интерактивния календар
@@ -91,7 +95,10 @@ document.getElementById('btn-next-month').onclick = () => { calendarCurrentDate.
 // Рендериране на бюрата по маси
 function renderOffice() {
     const tableContainers = ['t1-left', 't1-right', 't2-left', 't2-right', 't3-left', 't3-right'];
-    tableContainers.forEach(id => document.getElementById(id).innerHTML = '');
+    tableContainers.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
 
     // Разпределяне на бюрата по идентификатори на Маса А
     for(let i=1; i<=4; i++) {
@@ -109,16 +116,34 @@ function renderOffice() {
 
 function createDeskIcon(id, displayNum) {
     const wrapper = document.createElement('div');
-    const isOccupied = !!activeReservations[id];
     const occupant = activeReservations[id];
-    const isMe = isOccupied && occupant === currentUserName;
+    const isOccupied = !!occupant;
+    
+    // Вземаме името от LocalStorage в реално време за сравнение
+    const savedName = localStorage.getItem('current_user_name') || '';
+    const isMe = isOccupied && savedName && occupant.toLowerCase().trim() === savedName.toLowerCase().trim();
 
-    let colorClass = 'text-emerald-600 border-emerald-300 bg-white hover:bg-emerald-50 shadow-sm monitor-free';
+    // Задаваме точните CSS стилове, за да не се бъркат от Tailwind
     if (isOccupied) {
-        colorClass = isMe ? 'text-white border-indigo-600 bg-indigo-600 shadow-md monitor-mine' : 'text-rose-600 border-rose-200 bg-rose-50 shadow-sm monitor-occupied';
+        if (isMe) {
+            // Вашето място - СИНИО ИНДИГО С БЯЛ ТЕКСТ
+            wrapper.style.backgroundColor = "#4f46e5";
+            wrapper.style.color = "#ffffff";
+            wrapper.style.borderColor = "#4338ca";
+        } else {
+            // Заето от друг - ЧЕРВЕНО С ТЪМНОЧЕРВЕН ТЕКСТ
+            wrapper.style.backgroundColor = "#ffe4e6";
+            wrapper.style.color = "#e11d48";
+            wrapper.style.borderColor = "#fecdd3";
+        }
+    } else {
+        // Свободно място - БЯЛ БЕКГРАУНД СЪС ЗЕЛЕН ТЕКСТ
+        wrapper.style.backgroundColor = "#ffffff";
+        wrapper.style.color = "#059669";
+        wrapper.style.borderColor = "#a7f3d0";
     }
 
-    wrapper.className = `flex flex-col items-center justify-center p-1 rounded-xl border transition-all duration-200 hover:scale-110 cursor-pointer ${colorClass} w-11 h-11 relative group`;
+    wrapper.className = "flex flex-col items-center justify-center p-1 rounded-xl border transition-all duration-200 hover:scale-110 cursor-pointer w-11 h-11 relative group shadow-sm";
     wrapper.innerHTML = `
         <i class="fa-solid fa-desktop text-sm"></i>
         <span class="text-[9px] font-black font-mono tracking-tighter mt-0.5">${displayNum}</span>
@@ -130,14 +155,13 @@ function createDeskIcon(id, displayNum) {
     wrapper.onclick = async () => {
         selectedDeskId = id;
         if (isOccupied) {
-            // Позволяваме освобождаване на мястото (всеки може да коригира, ако се наложи)
             if (confirm(`Желаете ли да откажете резервацията на ${occupant} за Бюро ${displayNum}?`)) {
                 await supabaseClient.from('office_reservations').delete().eq('date', selectedDateStr).eq('desk_id', id);
                 fetchCloudData();
             }
         } else {
             document.getElementById('modal-subtitle').innerText = `Бюро ${displayNum} (${selectedDateStr})`;
-            document.getElementById('user-name').value = currentUserName;
+            document.getElementById('user-name').value = localStorage.getItem('current_user_name') || '';
             document.getElementById('booking-modal').style.display = 'flex';
         }
     };
@@ -147,6 +171,7 @@ function createDeskIcon(id, displayNum) {
 // Рендериране на залата за срещи
 function renderMeetings() {
     const container = document.getElementById('meeting-slots-container');
+    if (!container) return;
     container.innerHTML = '';
 
     TIME_SLOTS.forEach((slot, index) => {
@@ -198,10 +223,11 @@ function renderMeetings() {
 document.getElementById('btn-confirm-booking').onclick = async () => {
     const name = document.getElementById('user-name').value.trim();
     if (!name) return alert('Въведете име!');
-    currentUserName = name;
-    localStorage.setItem('current_user_name', currentUserName);
     
-    await supabaseClient.from('office_reservations').insert([{ date: selectedDateStr, desk_id: selectedDeskId, user_name: currentUserName }]);
+    currentUserName = name;
+    localStorage.setItem('current_user_name', name); // Запазва се твърдо
+    
+    await supabaseClient.from('office_reservations').insert([{ date: selectedDateStr, desk_id: selectedDeskId, user_name: name }]);
     document.getElementById('booking-modal').style.display = 'none';
     fetchCloudData();
 };
@@ -224,13 +250,15 @@ document.getElementById('btn-close-meeting-modal').onclick = () => document.getE
 const tabMain = document.getElementById('tab-main'); const tabSmall = document.getElementById('tab-small');
 const roomMainContainer = document.getElementById('room-main-container'); const roomSmallContainer = document.getElementById('room-small-container');
 
-tabMain.onclick = () => {
-    tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm bg-indigo-600 text-white shadow-lg cursor-pointer";
-    tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm text-slate-400 hover:text-slate-200 cursor-pointer";
-    roomMainContainer.className = "block"; roomSmallContainer.className = "hidden";
-};
-tabSmall.onclick = () => {
-    tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm bg-indigo-600 text-white shadow-lg cursor-pointer";
-    tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm text-slate-400 hover:text-slate-200 cursor-pointer";
-    roomSmallContainer.className = "block"; roomMainContainer.className = "hidden";
-};
+if (tabMain && tabSmall) {
+    tabMain.onclick = () => {
+        tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm bg-indigo-600 text-white shadow-lg cursor-pointer";
+        tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm text-slate-400 hover:text-slate-200 cursor-pointer";
+        roomMainContainer.className = "block"; roomSmallContainer.className = "hidden";
+    };
+    tabSmall.onclick = () => {
+        tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm bg-indigo-600 text-white shadow-lg cursor-pointer";
+        tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm text-slate-400 hover:text-slate-200 cursor-pointer";
+        roomSmallContainer.className = "block"; roomMainContainer.className = "hidden";
+    };
+}
