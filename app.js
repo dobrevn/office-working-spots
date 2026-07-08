@@ -1,176 +1,236 @@
-const OFFICIAL_HOLIDAYS = [
-    '2026-01-01', '2026-03-03', '2026-04-10', '2026-04-13',
-    '2026-05-01', '2026-05-06', '2026-05-24', '2026-09-06',
-    '2026-09-22', '2026-11-01', '2026-12-24', '2026-12-25', '2026-12-26'
-];
+// Конфигурация на твоя Supabase проект
+const SUPABASE_URL = "https://ieyujagodnrafpbagyvn.supabase.co";
+const SUPABASE_KEY = "sb_publishable_JFLXmTQzC5z2t28c9pPUiA_vCH6Y_X_7uH6B033p_Lsh5I5H_vF1C25T9b3_j6U"; 
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const WEEKDAYS_BG = ["Неделя", "Понеделник", "Вторник", "Сряда", "Четвъртък", "Петък", "Събота"];
+const MONTHS_BG = ["Януари", "Февруари", "Март", "Април", "Май", "Юни", "Юли", "Август", "Септември", "Октомври", "Ноември", "Декември"];
+const TIME_SLOTS = ["09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "12:00 - 13:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00", "17:00 - 18:00"];
 
-const datePicker = document.getElementById('date-picker');
-const dateInfo = document.getElementById('date-info');
-const weekendWarning = document.getElementById('weekend-warning');
-
-// Локална памет (база данни)
-let reservations = JSON.parse(localStorage.getItem('office_reservations')) || {};
 let currentUserName = localStorage.getItem('current_user_name') || '';
+let selectedDateStr = new Date().toISOString().split('T')[0];
+let calendarCurrentDate = new Date();
+
+let activeReservations = {}; 
+let activeMeetings = {};     
 let selectedDeskId = null;
+let selectedSlotIndex = null;
 
-// Инициализиране с днешна дата по подразбиране
-const todayStr = new Date().toISOString().split('T')[0];
-datePicker.value = todayStr;
+window.onload = () => {
+    buildCalendar();
+    selectDate(selectedDateStr);
+};
 
-function checkDateStatus(dateString) {
-    const dateObj = new Date(dateString);
-    const dayOfWeek = dateObj.getDay();
-    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-    const isHoliday = OFFICIAL_HOLIDAYS.includes(dateString);
-    return { isClosed: (isWeekend || isHoliday), dayName: WEEKDAYS_BG[dayOfWeek] };
-}
-
-function renderOffice() {
-    const selectedDate = datePicker.value;
-    if (!reservations[selectedDate]) reservations[selectedDate] = {};
-    
-    const dayRes = reservations[selectedDate];
-    const dateStatus = checkDateStatus(selectedDate);
-
-    dateInfo.innerText = `${dateStatus.dayName}`;
-    if (dateStatus.isClosed) {
-        weekendWarning.classList.remove('hidden');
-    } else {
-        weekendWarning.classList.add('hidden');
+// Зареждане на данните от базата данни за избрания ден
+async function fetchCloudData() {
+    // 1. Изтегляне на бюра
+    const { data: resData, error: e1 } = await supabaseClient
+        .from('office_reservations')
+        .select('*')
+        .eq('date', selectedDateStr);
+        
+    activeReservations = {};
+    if (resData) {
+        resData.forEach(row => { activeReservations[row.desk_id] = row.user_name; });
     }
 
-    // ИЗЧИСТВАНЕ НА ЗОНИТЕ ПРЕДИ ЗАРЕЖДАНЕ
-    const zones = {
-        'left-top': document.getElementById('left-top-row'),
-        'left-bottom': document.getElementById('left-bottom-row'),
-        't1-top': document.getElementById('main-table-1-top'),
-        't1-bottom': document.getElementById('main-table-1-bottom'),
-        't2-top': document.getElementById('main-table-2-top'),
-        't2-bottom': document.getElementById('main-table-2-bottom'),
-        't3-top': document.getElementById('main-table-3-top'),
-        't3-bottom': document.getElementById('main-table-3-bottom'),
-        'small': document.getElementById('small-room-top')
-    };
-    Object.values(zones).forEach(z => z.innerHTML = '');
+    // 2. Изтегляне на срещи
+    const { data: meetData, error: e2 } = await supabaseClient
+        .from('office_meetings')
+        .select('*')
+        .eq('date', selectedDateStr);
+        
+    activeMeetings = {};
+    if (meetData) {
+        meetData.forEach(row => { activeMeetings[row.slot_index] = { title: row.title, attendees: row.attendees }; });
+    }
 
-    // 1. ЛЯВ КРАЙ (Монитори 1 и 2 отгоре, 3 и 4 отдолу)
-    zones['left-top'].appendChild(createDeskIcon('M-1', '1', dayRes, dateStatus.isClosed, 'down'));
-    zones['left-top'].appendChild(createDeskIcon('M-2', '2', dayRes, dateStatus.isClosed, 'down'));
-    zones['left-bottom'].appendChild(createDeskIcon('M-3', '3', dayRes, dateStatus.isClosed, 'up'));
-    zones['left-bottom'].appendChild(createDeskIcon('M-4', '4', dayRes, dateStatus.isClosed, 'up'));
-
-    // 2. ДЪЛГИ МАСИ (3 маси по 6 монитора: 3 сочат надолу, 3 сочат нагоре)
-    // Маса 1 (Бюра 5-10)
-    for(let i=5; i<=7; i++) zones['t1-top'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'down'));
-    for(let i=8; i<=10; i++) zones['t1-bottom'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'up'));
-
-    // Маса 2 (Бюра 11-16)
-    for(let i=11; i<=13; i++) zones['t2-top'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'down'));
-    for(let i=14; i<=16; i++) zones['t2-bottom'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'up'));
-
-    // Маса 3 (Бюра 17-22)
-    for(let i=17; i<=19; i++) zones['t3-top'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'down'));
-    for(let i=20; i<=22; i++) zones['t3-bottom'].appendChild(createDeskIcon(`M-${i}`, i, dayRes, dateStatus.isClosed, 'up'));
-
-    // 3. МАЛКА СТАЯ (3 монитора в редица)
-    for(let i=1; i<=3; i++) zones['small'].appendChild(createDeskIcon(`S-${i}`, i, dayRes, dateStatus.isClosed, 'down'));
+    renderOffice();
+    renderMeetings();
 }
 
-// Функция за създаване на икона-монитор с физическа ориентация
-function createDeskIcon(id, displayNum, dayRes, isClosedDay, direction) {
+// Изграждане на интерактивния календар
+function buildCalendar() {
+    const year = calendarCurrentDate.getFullYear();
+    const month = calendarCurrentDate.getMonth();
+    document.getElementById('calendar-month-year').innerText = `${MONTHS_BG[month]} ${year}`;
+    
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const adjustedFirstDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    
+    const grid = document.getElementById('calendar-days-grid');
+    grid.innerHTML = '';
+    
+    for (let i = 0; i < adjustedFirstDay; i++) grid.appendChild(document.createElement('div'));
+    
+    for (let day = 1; day <= totalDays; day++) {
+        const cell = document.createElement('button');
+        const loopDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        cell.innerText = day;
+        cell.className = "p-1 text-xs font-semibold rounded hover:bg-indigo-500/20 transition-all cursor-pointer text-slate-300";
+        if (loopDate === selectedDateStr) cell.className = "p-1 text-xs font-bold rounded bg-indigo-600 text-white shadow-sm cursor-pointer";
+        cell.onclick = () => selectDate(loopDate);
+        grid.appendChild(cell);
+    }
+}
+
+function selectDate(dateString) {
+    selectedDateStr = dateString;
+    document.getElementById('date-picker').value = dateString;
+    const d = new Date(dateString);
+    document.getElementById('current-selected-date-display').innerText = `${dateString} (${WEEKDAYS_BG[d.getDay()]})`;
+    buildCalendar();
+    fetchCloudData();
+}
+
+document.getElementById('btn-prev-month').onclick = () => { calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() - 1); buildCalendar(); };
+document.getElementById('btn-next-month').onclick = () => { calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + 1); buildCalendar(); };
+
+// Рендериране на бюрата по маси
+function renderOffice() {
+    const tableContainers = ['t1-left', 't1-right', 't2-left', 't2-right', 't3-left', 't3-right'];
+    tableContainers.forEach(id => document.getElementById(id).innerHTML = '');
+
+    // Разпределяне на бюрата по идентификатори на Маса А
+    for(let i=1; i<=4; i++) {
+        const pos = document.getElementById(`pos-M-${i}`);
+        if(pos) { pos.innerHTML = ''; pos.appendChild(createDeskIcon(`M-${i}`, i)); }
+    }
+    // Разпределяне на основните маси
+    for(let i=5; i<=7; i++) document.getElementById('t1-left').appendChild(createDeskIcon(`M-${i}`, i));
+    for(let i=8; i<=10; i++) document.getElementById('t1-right').appendChild(createDeskIcon(`M-${i}`, i));
+    for(let i=11; i<=13; i++) document.getElementById('t2-left').appendChild(createDeskIcon(`M-${i}`, i));
+    for(let i=14; i<=16; i++) document.getElementById('t2-right').appendChild(createDeskIcon(`M-${i}`, i));
+    for(let i=17; i<=19; i++) document.getElementById('t3-left').appendChild(createDeskIcon(`M-${i}`, i));
+    for(let i=20; i<=22; i++) document.getElementById('t3-right').appendChild(createDeskIcon(`M-${i}`, i));
+}
+
+function createDeskIcon(id, displayNum) {
     const wrapper = document.createElement('div');
-    const isOccupied = !!dayRes[id];
-    const occupant = dayRes[id];
+    const isOccupied = !!activeReservations[id];
+    const occupant = activeReservations[id];
     const isMe = isOccupied && occupant === currentUserName;
 
-    // Определяне на цвета спрямо статуса
-    let colorClass = 'text-emerald-500 hover:text-emerald-400 border-emerald-500/20 bg-emerald-500/5 monitor-free';
+    let colorClass = 'text-emerald-600 border-emerald-300 bg-white hover:bg-emerald-50 shadow-sm monitor-free';
     if (isOccupied) {
-        colorClass = isMe 
-            ? 'text-indigo-400 border-indigo-500/50 bg-indigo-500/10 monitor-mine' 
-            : 'text-rose-500 border-rose-500/20 bg-rose-500/5 monitor-occupied';
-    }
-    if (isClosedDay) {
-        colorClass = 'text-slate-700 border-slate-900 bg-slate-900/10 cursor-not-allowed';
+        colorClass = isMe ? 'text-white border-indigo-600 bg-indigo-600 shadow-md monitor-mine' : 'text-rose-600 border-rose-200 bg-rose-50 shadow-sm monitor-occupied';
     }
 
-    wrapper.className = `flex flex-col items-center justify-center p-2 rounded-xl border transition-all duration-200 ${isClosedDay ? '' : 'hover:scale-110 cursor-pointer'} ${colorClass} w-14 h-14 relative group`;
-    
-    // Визуална стрелкичка, която показва накъде гледа монитора на масата
-    const arrow = direction === 'down' ? '🔽' : '🔼';
-
+    wrapper.className = `flex flex-col items-center justify-center p-1 rounded-xl border transition-all duration-200 hover:scale-110 cursor-pointer ${colorClass} w-11 h-11 relative group`;
     wrapper.innerHTML = `
-        <i class="fa-solid fa-desktop text-base"></i>
-        <span class="text-[10px] font-black font-mono tracking-tighter mt-0.5">${displayNum}</span>
-        <!-- Tooltip при посочване (Ховър ефект) -->
+        <i class="fa-solid fa-desktop text-sm"></i>
+        <span class="text-[9px] font-black font-mono tracking-tighter mt-0.5">${displayNum}</span>
         <span class="absolute bottom-full mb-1 scale-0 group-hover:scale-100 transition-all text-[10px] bg-slate-900 text-slate-200 px-2 py-1 rounded border border-slate-700 font-medium whitespace-nowrap z-10 shadow-xl">
-            ${isOccupied ? `Заето от: ${occupant}` : isClosedDay ? 'Затворено' : 'Свободно (Dell 24")'}
+            ${isOccupied ? `Заето от: ${occupant}` : 'Свободно'}
         </span>
     `;
 
-    if (!isClosedDay) {
-        wrapper.onclick = () => handleDeskClick(id, isOccupied, isMe, occupant);
-    }
+    wrapper.onclick = async () => {
+        selectedDeskId = id;
+        if (isOccupied) {
+            // Позволяваме освобождаване на мястото (всеки може да коригира, ако се наложи)
+            if (confirm(`Желаете ли да откажете резервацията на ${occupant} за Бюро ${displayNum}?`)) {
+                await supabaseClient.from('office_reservations').delete().eq('date', selectedDateStr).eq('desk_id', id);
+                fetchCloudData();
+            }
+        } else {
+            document.getElementById('modal-subtitle').innerText = `Бюро ${displayNum} (${selectedDateStr})`;
+            document.getElementById('user-name').value = currentUserName;
+            document.getElementById('booking-modal').style.display = 'flex';
+        }
+    };
     return wrapper;
 }
 
-function handleDeskClick(id, isOccupied, isMe, occupant) {
-    selectedDeskId = id;
-    const selectedDate = datePicker.value;
-    
-    if (isOccupied) {
-        if (isMe) {
-            if (confirm(`Желаете ли да откажете резервацията си за Монитор ${id.split('-')[1]} за дата ${selectedDate}?`)) {
-                delete reservations[selectedDate][id];
-                localStorage.setItem('office_reservations', JSON.stringify(reservations));
-                renderOffice();
-            }
+// Рендериране на залата за срещи
+function renderMeetings() {
+    const container = document.getElementById('meeting-slots-container');
+    container.innerHTML = '';
+
+    TIME_SLOTS.forEach((slot, index) => {
+        const isBooked = !!activeMeetings[index];
+        const data = activeMeetings[index];
+        const card = document.createElement('div');
+        
+        if (isBooked) {
+            card.className = "p-4 rounded-xl border border-rose-900/40 bg-rose-950/20 flex flex-col justify-between gap-2 shadow-sm";
+            card.innerHTML = `
+                <div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-mono font-bold bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded border border-rose-500/20"><i class="fa-regular fa-clock mr-1"></i>${slot}</span>
+                        <span class="text-[10px] uppercase font-black tracking-wider text-rose-500">Заета</span>
+                    </div>
+                    <h4 class="text-sm font-bold text-slate-100 mt-2">${data.title}</h4>
+                    <p class="text-xs text-slate-400 mt-1"><i class="fa-solid fa-users text-indigo-400 mr-1"></i> ${data.attendees}</p>
+                </div>
+                <button class="mt-2 text-left text-[11px] font-bold text-rose-400/70 hover:text-rose-400 cursor-pointer"><i class="fa-regular fa-trash-can mr-1"></i>Освободи залата</button>
+            `;
+            card.querySelector('button').onclick = async () => {
+                if (confirm(`Изтриване на срещата "${data.title}"?`)) {
+                    await supabaseClient.from('office_meetings').delete().eq('date', selectedDateStr).eq('slot_index', index);
+                    fetchCloudData();
+                }
+            };
+        } else {
+            card.className = "p-4 rounded-xl border border-slate-800 bg-slate-900/20 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all flex justify-between items-center cursor-pointer group shadow-sm";
+            card.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-mono font-bold bg-slate-800 text-slate-300 px-2 py-1 rounded border border-slate-700">${slot}</span>
+                    <span class="text-xs font-semibold text-slate-400">Свободен слот</span>
+                </div>
+                <i class="fa-solid fa-circle-plus text-slate-700 group-hover:text-indigo-400 text-lg"></i>
+            `;
+            card.onclick = () => {
+                selectedSlotIndex = index;
+                document.getElementById('meeting-modal-subtitle').innerText = `Час: ${slot} (${selectedDateStr})`;
+                document.getElementById('meeting-title').value = '';
+                document.getElementById('meeting-attendees').value = '';
+                document.getElementById('meeting-modal').style.display = 'flex';
+            };
         }
-    } else {
-        document.getElementById('modal-subtitle').innerText = `${id.includes('M') ? 'Основна стая' : 'Малка стая'}, Монитор ${id.split('-')[1]} (${selectedDate})`;
-        document.getElementById('user-name').value = currentUserName;
-        document.getElementById('booking-modal').style.display = 'flex';
-    }
+        container.appendChild(card);
+    });
 }
 
-document.getElementById('btn-confirm-booking').onclick = () => {
-    const nameInput = document.getElementById('user-name').value.trim();
-    if (!nameInput) return alert('Моля, въведете име!');
-
-    currentUserName = nameInput;
+// Потвърждаване на резервация за бюро
+document.getElementById('btn-confirm-booking').onclick = async () => {
+    const name = document.getElementById('user-name').value.trim();
+    if (!name) return alert('Въведете име!');
+    currentUserName = name;
     localStorage.setItem('current_user_name', currentUserName);
-
-    const selectedDate = datePicker.value;
-    reservations[selectedDate][selectedDeskId] = currentUserName;
     
-    localStorage.setItem('office_reservations', JSON.stringify(reservations));
+    await supabaseClient.from('office_reservations').insert([{ date: selectedDateStr, desk_id: selectedDeskId, user_name: currentUserName }]);
     document.getElementById('booking-modal').style.display = 'none';
-    renderOffice();
+    fetchCloudData();
 };
 
-document.getElementById('btn-close-modal').onclick = () => {
-    document.getElementById('booking-modal').style.display = 'none';
+// Потвърждаване на резервация за среща
+document.getElementById('btn-confirm-meeting').onclick = async () => {
+    const title = document.getElementById('meeting-title').value.trim();
+    const attendees = document.getElementById('meeting-attendees').value.trim();
+    if (!title || !attendees) return alert('Попълнете полетата!');
+    
+    await supabaseClient.from('office_meetings').insert([{ date: selectedDateStr, slot_index: selectedSlotIndex, title, attendees }]);
+    document.getElementById('meeting-modal').style.display = 'none';
+    fetchCloudData();
 };
 
-datePicker.onchange = () => renderOffice();
+document.getElementById('btn-close-modal').onclick = () => document.getElementById('booking-modal').style.display = 'none';
+document.getElementById('btn-close-meeting-modal').onclick = () => document.getElementById('meeting-modal').style.display = 'none';
 
-// Табове логика
-const tabMain = document.getElementById('tab-main');
-const tabSmall = document.getElementById('tab-small');
-const roomMainContainer = document.getElementById('room-main-container');
-const roomSmallContainer = document.getElementById('room-small-container');
+// Превключване на табовете
+const tabMain = document.getElementById('tab-main'); const tabSmall = document.getElementById('tab-small');
+const roomMainContainer = document.getElementById('room-main-container'); const roomSmallContainer = document.getElementById('room-small-container');
 
 tabMain.onclick = () => {
-    tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 bg-indigo-600 text-white shadow-lg shadow-indigo-600/10 cursor-pointer";
-    tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 text-slate-400 hover:text-slate-200 cursor-pointer";
+    tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm bg-indigo-600 text-white shadow-lg cursor-pointer";
+    tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm text-slate-400 hover:text-slate-200 cursor-pointer";
     roomMainContainer.className = "block"; roomSmallContainer.className = "hidden";
 };
 tabSmall.onclick = () => {
-    tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 bg-indigo-600 text-white shadow-lg shadow-indigo-600/10 cursor-pointer";
-    tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm transition-all duration-300 text-slate-400 hover:text-slate-200 cursor-pointer";
+    tabSmall.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm bg-indigo-600 text-white shadow-lg cursor-pointer";
+    tabMain.className = "flex-1 text-center py-2.5 rounded-lg font-bold text-sm text-slate-400 hover:text-slate-200 cursor-pointer";
     roomSmallContainer.className = "block"; roomMainContainer.className = "hidden";
 };
-
-renderOffice();
