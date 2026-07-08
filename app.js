@@ -1,7 +1,6 @@
 // Конфигурация на твоя Supabase проект
 const SUPABASE_URL = "https://ieyujagodnrafpbagyvn.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlleXVqYWdvZG5yYWZwYmFneXZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTU4OTIzNDUsImV4cCI6MjAzMTQ2ODM0NX0.Your_Actual_Long_Supabase_Anon_Key_Here"; // Увери се, че тук е твоят реален дълъг public anon ключ, започващ с eyJ
-
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlleXVqYWdvZG5yYWZwYmFneXZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0OTc3NDAsImV4cCI6MjA5OTA3Mzc0MH0.T2cjzuPrGgXuftzBTiQVF5zy5g1xJrwJsXaGCKAPx4Y"; // 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const WEEKDAYS_BG = ["Неделя", "Понеделник", "Вторник", "Сряда", "Четвъртък", "Петък", "Събота"];
